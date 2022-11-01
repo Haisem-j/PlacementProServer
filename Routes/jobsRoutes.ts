@@ -8,15 +8,40 @@ dotenv.config();
 const router = express.Router();
 const BASE_URL = "/api/v1/jobs";
 /**
- * Fetches all jobs
- * @route GET /jobs
+ * Fetches all jobs and their companies
+ * @route POST /
+ * @REQUEST BODY { limit: number, skip: number }
  */
-router.get("/jobs", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const jobs = await prisma.job.findMany();
+    const { limit, skip } = req.body;
+    const jobs = await prisma.job.findMany({
+      skip: skip,
+      take: limit,
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    const companyMap: any = {};
+
+    jobs.forEach((job) => {
+      if (!companyMap[job.companyId]) {
+        companyMap[job.companyId] = true;
+      }
+    });
+    const compIds: number[] = [];
+    Object.keys(companyMap).forEach((key) => {
+      compIds.push(Number(key));
+    });
+    const companies = await prisma.company.findMany({
+      where: {
+        id: { in: compIds },
+      },
+    });
+
     res.status(200).send({
       success: true,
-      data: jobs,
+      data: { jobs, companies },
       message: "Jobs fetched successfully",
     });
   } catch (error: any) {
@@ -26,6 +51,7 @@ router.get("/jobs", async (req: Request, res: Response, next: NextFunction) => {
 
 /**
  * Fetches jobs with featured status
+ * @route POST /jobs/featured
  */
 router.get(
   "/featured",
